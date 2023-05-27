@@ -204,6 +204,6 @@ else
     echo "$(date "+%R:%S - ")    -- La modification du fichier $ReverseProxyCONF a déjà été effectuée lors d'une précédente exécution. Aucune modification n'est donc nécessaire."
 fi
 
-echo "$(date "+%R:%S - ") Script vaultwarden__Enable_Websocket_DSM6.sh terminé"
+echo "$(date "+%R:%S - ") Script $script_name terminé"
 
 exit
