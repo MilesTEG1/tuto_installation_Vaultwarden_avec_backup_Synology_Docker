@@ -1,7 +1,7 @@
 #!/bin/bash
 ##==============================================================================================
 ##                                                                                            ##
-##                          Script vaultwarden__Enable_Websocket_DSM6.sh                           ##
+##                   Script vaultwarden__Enable_Websocket_DSM6_DSM7.sh                        ##
 ##                                                                                            ##
 ##          Source : https://gist.github.com/nstanke/3949ae1c4706854d8f166d1fb3dadc81         ##
 ##                                                                                            ##
