@@ -1,7 +1,7 @@
 #!/bin/bash
 ##==============================================================================================
 ##                                                                                            ##
-##                          Script vaultwarden__Enable_Websocket.sh                           ##
+##                          Script vaultwarden__Enable_Websocket_DSM6.sh                           ##
 ##                                                                                            ##
 ##          Source : https://gist.github.com/nstanke/3949ae1c4706854d8f166d1fb3dadc81         ##
 ##                                                                                            ##
@@ -52,17 +52,20 @@ IP_NAS="192.168.2.200"
 # Ici, spécifier la version de DSM
 #   - 6 pour DSM 6.2.x
 #   - 7 pour DSM 7.x (testé avec 7.0, 7.1, et 7.2)
-DSM=7
+# DSM=7
+# La version de DSM est déterminée plus bas par le script.
 
-echo -e "\n$(date "+%R:%S - ") Script vaultwarden__Enable_Websocket.sh pour activer les Notifications Websockets"
+script_name=$(basename "$0")
+
+echo -e "\n$(date "+%R:%S - ") Script $script_name pour activer les Notifications Websockets"
 
 f_affiche_parametre() {
-    echo "          bash /volume4/docker/_Scripts-DOCKER/vaultwarden__Enable_Websocket.sh vault.example.com 5555 5556 "
+    echo "          bash /volume4/docker/_Scripts-DOCKER/$script_name vault.example.com 5555 5556 "
     echo "                           -- vault.example.com = Nom de domaine de vaultwarden (celui du Reverse Proxy de DSM) "
     echo "                           -- 5555 = Port exposé ROCKET_PORT par Docker (Identique à celui du Reverse Proxy de DSM)"
     echo "                           -- 5556 = Port exposé WEBSOCKET_PORT par Docker"
     echo
-    echo "La commande que tu dois lancer c'est : ./vaultwarden__Enable_Websocket.sh vault.example.com 5555 5556"
+    echo "La commande que tu dois lancer c'est : ./$script_name vault.example.com 5555 5556"
     echo
 }
 
@@ -80,6 +83,8 @@ if [ ! $# -eq 3 ]; then
 fi
 
 echo "$(date "+%R:%S - ") Exécution des commandes..."
+DSM=$(grep "majorversion" /etc.defaults/VERSION | awk -F "\"" '{print $2}')
+echo "$(date "+%R:%S - ")    -- Version de DSM déterminée : $DSM"
 
 #############################################################################################################
 ## Début de la partie de création/modification de fichiers
@@ -173,7 +178,7 @@ elif [ $DSM -eq 7 ]; then
         part2=1 # Variable pour indiquer que cette partie a été exécutée
     fi
 else
-    echo "$(date "+%R:%S - ")    -- !!!!!! --->  La version de DSM spécifié dans le script n'est pas correcte. Vérifier le script !"
+    echo "$(date "+%R:%S - ")    -- !!!!!! --->  La version de DSM spécifiée dans le script n'est pas correcte. Vérifier le script !"
     exit 1
 fi
 ##
@@ -199,6 +204,6 @@ else
     echo "$(date "+%R:%S - ")    -- La modification du fichier $ReverseProxyCONF a déjà été effectuée lors d'une précédente exécution. Aucune modification n'est donc nécessaire."
 fi
 
-echo "$(date "+%R:%S - ") Script vaultwarden__Enable_Websocket.sh terminé"
+echo "$(date "+%R:%S - ") Script vaultwarden__Enable_Websocket_DSM6.sh terminé"
 
 exit
