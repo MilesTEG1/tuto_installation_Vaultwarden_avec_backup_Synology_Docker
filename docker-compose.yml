@@ -1,7 +1,7 @@
 ##==============================================================================================
 ##                                                                                            ##
 ##         Fichier docker-compose.yml pour Vaultwarden avec ttionya/vaultwarden-backup        ##
-##                                 Révision du fichier : v5.0                                 ##
+##                                 Révision du fichier : v5.1                                 ##
 ##                                                                                            ##
 ##==============================================================================================
 ##                                                                                            ##
@@ -88,7 +88,6 @@ services:
       - SMTP_FROM=XXxxXX
       - SMTP_FROM_NAME=Vaultwarden (_Bitwarden_)
 
-
       - INVITATION_ORG_NAME=Vaultwarden [Votre Nom, pseudo...]   # Permet de spécifier un nom d'application pour les invitations d'organisation
 
       # Nécessaire pour activer le 2FA pour la connexion à notre serveur Vaultwarden
@@ -100,9 +99,6 @@ services:
       - LOG_FILE=/data/vaultwarden.log
       - LOG_LEVEL=warn
       - EXTENDED_LOGGING=true
-
-      # je n'aime pas les indices pour les mots de passe...
-      - SHOW_PASSWORD_HINT=false
 
       # Pour activer la console d'administation, accessible via : https://mon.domaine.tld/admin/
       # Voir détails ici : https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page
@@ -127,14 +123,44 @@ services:
                                 # Il faudra alors décommenter la ligne suivante, et changer le port exposé plus bas.
       #- WEBSOCKET_PORT=3012    # Par défaut = 3012
       
-      # Pour activer la récupération des icones des IP LAN, il faut mettre sur false la variable ICON_BLACKLIST_NON_GLOBAL_IPS
+      # Pour activer la récupération des icônes des IP LAN, il faut mettre sur false la variable ICON_BLACKLIST_NON_GLOBAL_IPS
       - ICON_BLACKLIST_NON_GLOBAL_IPS=false      # Par défaut = true
       
       # On défini ici quelques chemins de dossiers qu'il faudra créer (pas sur que le conteneur les crées lui-même...)
       - ICON_CACHE_FOLDER=data/icon_cache
       - ATTACHMENTS_FOLDER=data/attachments
       - SENDS_FOLDER=data/sends
+      
+      ###############################################
+      # Nouveautés v5.1 : variables pour la sécurité
+      ## Nombre de secondes, en moyenne, entre les demandes de connexion à partir de la même adresse IP avant que la limitation de débit n'entre en vigueur.
+      - LOGIN_RATELIMIT_SECONDS=60
+      ## Autoriser une rafale de requêtes jusqu'à cette taille, tout en maintenant la moyenne indiquée par `LOGIN_RATELIMIT_SECONDS`.
+      ## Notez que cela s'applique à la fois à la connexion et au 2FA, il est donc recommandé d'autoriser une taille de rafale d'au moins 2.
+      - LOGIN_RATELIMIT_MAX_BURST=5
 
+      ## Nombre de secondes, en moyenne, entre les demandes de connexion d'administrateur à partir de la même adresse IP avant que la limitation de débit n'entre en vigueur.
+      - ADMIN_RATELIMIT_SECONDS=60
+      ## Autoriser une rafale de requêtes jusqu'à cette taille, tout en maintenant la moyenne indiquée par `ADMIN_RATELIMIT_SECONDS`.
+      - ADMIN_RATELIMIT_MAX_BURST=3
+
+      ## Définissez la durée de vie des sessions d'administration sur cette valeur (en minutes).
+      - ADMIN_SESSION_LIFETIME=20
+      
+      ## Contrôle si les utilisateurs peuvent définir des indices de mot de passe. Ce paramètre s'applique globalement à tous les utilisateurs.
+      - PASSWORD_HINTS_ALLOWED=false
+      ## Contrôle si un indice de mot de passe doit être affiché directement dans la page Web si le service SMTP n'est pas configuré.
+      ## Non recommandé pour les instances accessibles au public car cela fournit un accès non authentifié à des données potentiellement sensibles.
+      - SHOW_PASSWORD_HINT=false
+
+      ## Nombre de minutes à attendre avant qu'une connexion compatible 2FA soit considérée comme incomplète, entraînant une notification par e-mail.
+      ## Une connexion 2FA incomplète est celle où le bon ## le mot de passe principal a été fourni mais l'étape 2FA requise n'a pas été effectuée,
+      ## ce qui indique potentiellement une compromission du mot de passe principal.
+      ## Réglez sur 0 pour désactiver cette vérification.
+      ## Ce paramètre s'applique globalement à tous les utilisateurs.
+      - INCOMPLETE_2FA_TIME_LIMIT=2
+      ###############################################
+      
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
