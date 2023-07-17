@@ -1,0 +1,236 @@
+##==============================================================================================
+##                                                                                            ##
+##         Fichier docker-compose.yml pour Vaultwarden avec ttionya/vaultwarden-backup        ##
+##                                 Révision du fichier : v5.1                                 ##
+##              Utilisable pour les versions de Vaultwarden antérieures à 1.29.0              ##
+##                                                                                            ##
+##==============================================================================================
+##                                                                                            ##
+## Attention, avec ce fichier, il faut avoir créer le réseau "vaultwarden_network" avant de   ##
+## créer les conteneurs.                                                                      ##
+##                                                                                            ##
+##             La mise en place de fail2ban se fera avec un docker-compose dédié.             ##
+##                                                                                            ##
+##==============================================================================================
+##                                                                                            ##
+##                                       NOTE IMPORTANTE                                      ##
+##                                      -----------------                                     ##
+##                                                                                            ##
+##  Lors de l'importation d'un fichier contenant beaucoup d'entrées, j'ai eu une erreur       ##
+##  405 Not Allowed - Nginx                                                                   ##
+##  Après quelques recherches, et un certains nombre de minutes, il s'est avéré que les       ##
+##  expiration du délai ... (les timeout) dans le reverse proxy par défaut de 60s étaient     ##
+##  trop faible.                                                                              ##
+##  En passant les 3 valeurs à 300s (5min), ça a réglé mon problème.                          ##
+##  (Pensez à relancer le script vaultwarden__Enable_Websocket.sh après ces modifications)    ##
+##                                                                                            ##
+##==============================================================================================
+##                                                                                            ##
+##                              Ajout des Notifications Websocket                             ##
+##                                                                                            ##
+## Pour qu'elles'fonctionnent, il faut configurer le reverse-proxy correctement.              ##
+## Pour celui de DSM, il n'est malheureusement pas possible de configurer les                 ##
+## redirections /notifications/hub vers le serveur WebSocket ni celles vers le port normal    ##
+## /notifications/hub/negotiate                                                               ##
+## Voir cet article pour tout ce qui n'est pas possible via l'interface de DSM :              ##
+## https://github.com/dani-garcia/vaultwarden/wiki/Enabling-WebSocket-notifications           ##
+##                                                                                            ##
+## Dès lors, il faut ruser et passer par l'exécution d'un petit script qui va créer un        ##
+## fchier ws.locations contenant les modifications précédentes, et qui va écrire une          ##
+## ligne dans le fichier /etc/nginx/app.d/server.ReverseProxy.conf pour inclure le            ##
+## fichier ws.locations au niveau de la section concernant le nom de domaine pour             ##
+## vaultwarden.                                                                               ##
+## Comme cela, il n'est pas nécessaire de passer par le changement de reverse-proxy, assez    ##
+## complexe à mettre en oeuvre...                                                             ##
+##                                                                                            ##
+## Le script est : vaultwarden__Enable_Websocket.sh                                           ##
+##                                                                                            ##
+## Il faudra la lancer régulièrement et à chaque redémarrage du NAS, via deux tâches          ##
+## plannifiées dédiées, en donnant 3 paramètres au fichier :                                  ##
+## - le nom de domaine de vaultwarden                                                         ##
+## - le port HTTP exposé (donc pas l'interne du conteneur) pour l'interface graphique         ##
+## - le port websocket exposé (donc pas l'interne du conteneur)                               ##
+## Voir les commentaires de ce fichier vaultwarden__Enable_Websocket.sh pour plus             ##
+## d'explications.                                                                            ##
+##                                                                                            ##
+##==============================================================================================
+#
+# Tuto : https://www.forum-nas.fr/threads/tuto-installer-vaultwarden-avec-une-sauvegarde-automatique-des-donn%C3%A9es-nouvelle-version.20614/
+#
+---
+version: "2.4"
+
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest    # https://github.com/dani-garcia/vaultwarden
+                                        # https://github.com/dani-garcia/vaultwarden/wiki
+    container_name: vaultwarden
+    networks:
+      - vaultwarden_network
+    environment:
+      # Utiliser la commande (en SSH) : id NOM_UTILISATEUR
+      - PUID=1000
+      - PGID=100
+      - TZ=Europe/Paris
+      
+      # Pour l'envoi d'emails
+      # Domains: gmail.com, googlemail.com
+      # SMTP_SSL and SMTP_EXPLICIT_TLS are DEPRECIATED, https://github.com/dani-garcia/vaultwarden/wiki/SMTP-Configuration
+      # Gmail FullSSL
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=465
+      - SMTP_SECURITY=force_tls
+      # Gmail StartTLS
+      # - SMTP_PORT=587
+      # - SMTP_SECURITY=starttls
+      - SMTP_USERNAME=XXxxXX
+      - SMTP_PASSWORD=XXxxXX
+
+      - SMTP_FROM=XXxxXX
+      - SMTP_FROM_NAME=Vaultwarden (_Bitwarden_)
+
+      - INVITATION_ORG_NAME=Vaultwarden [Votre Nom, pseudo...]   # Permet de spécifier un nom d'application pour les invitations d'organisation
+
+      # Nécessaire pour activer le 2FA pour la connexion à notre serveur Vaultwarden
+      # Il est possible de spécifier un port de connexion dans l'URL. Le https:// est obligatoire.
+      # Pour cette option, il est donc OBLIGATOIRE d'avoir fait le nécessaire pour avoir du HTTPS (certificats, reverse-proxy, ...)
+      - DOMAIN=XXxxXX
+
+      # Pour enregistrer les log avec un niveau particulier
+      - LOG_FILE=/data/vaultwarden.log
+      - LOG_LEVEL=warn
+      - EXTENDED_LOGGING=true
+
+      # Pour activer la console d'administation, accessible via : https://mon.domaine.tld/admin/
+      # Voir détails ici : https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page
+      # /!\
+      # /!\ N'importe qui pourra accéder à la page de connexion, alors blinder le token d'amdin ci-dessous (64 caractères pour moi) !
+      # /!\ Il est de plus TRÈS important d'avoir ACTIVÉ le HTTPS avant l'activation de cette option.
+      # /!\
+      # Je conseille de ne l'activer qu'en cas de nécessité, et de la désactiver après.
+      # L'utilisation d'Argon2 est recommandée, voir ici : https://github.com/dani-garcia/vaultwarden/wiki/Enabling-admin-page#secure-the-admin_token
+      # Pour désactiver, il suffit de commenter la ligne ci-dessous.
+      - ADMIN_TOKEN=XXxxXX
+      # À noter :
+      #   La première fois que vous enregistrez un paramètre dans la page d'administration, 'config.json' sera généré 
+      #   dans votre 'DATA_FOLDER'. Les valeurs de ce fichier auront priorité sur les valeurs 'environnement'.
+      
+      - SIGNUPS_ALLOWED=false   # Fait en sorte que les inscriptions soient bloquées, seul l'admin pourra inviter
+                                # des utilisateurs avec un envoi d'email depuis la console d’administration
+
+      - WEBSOCKET_ENABLED=true  # Active les WebSocket notifications (Nécessite la configuration du reverse-proxy)
+                                # Durant le nombre importants d'essais, j'en suis venu à laisser le port par défaut
+                                # pour le WEBSOCKET_PORT. Il est possible que ça fonctionne avec un port différent.
+                                # Il faudra alors décommenter la ligne suivante, et changer le port exposé plus bas.
+      #- WEBSOCKET_PORT=3012    # Par défaut = 3012
+      
+      # Pour activer la récupération des icônes des IP LAN, il faut mettre sur false la variable ICON_BLACKLIST_NON_GLOBAL_IPS
+      - ICON_BLACKLIST_NON_GLOBAL_IPS=false      # Par défaut = true
+      
+      # On défini ici quelques chemins de dossiers qu'il faudra créer (pas sur que le conteneur les crées lui-même...)
+      - ICON_CACHE_FOLDER=data/icon_cache
+      - ATTACHMENTS_FOLDER=data/attachments
+      - SENDS_FOLDER=data/sends
+      
+      ###############################################
+      # Nouveautés v5.1 : variables pour la sécurité
+      ## Nombre de secondes, en moyenne, entre les demandes de connexion à partir de la même adresse IP avant que la limitation de débit n'entre en vigueur.
+      - LOGIN_RATELIMIT_SECONDS=60
+      ## Autoriser une rafale de requêtes jusqu'à cette taille, tout en maintenant la moyenne indiquée par `LOGIN_RATELIMIT_SECONDS`.
+      ## Notez que cela s'applique à la fois à la connexion et au 2FA, il est donc recommandé d'autoriser une taille de rafale d'au moins 2.
+      - LOGIN_RATELIMIT_MAX_BURST=5
+
+      ## Nombre de secondes, en moyenne, entre les demandes de connexion d'administrateur à partir de la même adresse IP avant que la limitation de débit n'entre en vigueur.
+      - ADMIN_RATELIMIT_SECONDS=60
+      ## Autoriser une rafale de requêtes jusqu'à cette taille, tout en maintenant la moyenne indiquée par `ADMIN_RATELIMIT_SECONDS`.
+      - ADMIN_RATELIMIT_MAX_BURST=3
+
+      ## Définissez la durée de vie des sessions d'administration sur cette valeur (en minutes).
+      - ADMIN_SESSION_LIFETIME=20
+      
+      ## Contrôle si les utilisateurs peuvent définir des indices de mot de passe. Ce paramètre s'applique globalement à tous les utilisateurs.
+      - PASSWORD_HINTS_ALLOWED=false
+      ## Contrôle si un indice de mot de passe doit être affiché directement dans la page Web si le service SMTP n'est pas configuré.
+      ## Non recommandé pour les instances accessibles au public car cela fournit un accès non authentifié à des données potentiellement sensibles.
+      - SHOW_PASSWORD_HINT=false
+
+      ## Nombre de minutes à attendre avant qu'une connexion compatible 2FA soit considérée comme incomplète, entraînant une notification par e-mail.
+      ## Une connexion 2FA incomplète est celle où le bon ## le mot de passe principal a été fourni mais l'étape 2FA requise n'a pas été effectuée,
+      ## ce qui indique potentiellement une compromission du mot de passe principal.
+      ## Réglez sur 0 pour désactiver cette vérification.
+      ## Ce paramètre s'applique globalement à tous les utilisateurs.
+      - INCOMPLETE_2FA_TIME_LIMIT=2
+      ###############################################
+      
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+    volumes:
+      - "/volume1/docker/vaultwarden/vaultwarden-data/:/data/"
+    ports:
+      - XXxxXX:3012   # Choisir un port libre pour le websocket
+      - XXxxXX:80     # Choisir un port libre pour l'interface WEB
+    restart: unless-stopped
+
+  vaultwarden_backup_ttionya:     # Voir : https://github.com/ttionya/vaultwarden-backup
+    image: ttionya/vaultwarden-backup:latest
+    container_name: vaultwarden_backup_ttionya
+    networks:
+      - vaultwarden_network
+    
+    restart: always
+    
+    depends_on:
+      vaultwarden:
+        condition: service_healthy
+    
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    
+    volumes:
+      - /volume1/docker/vaultwarden/vaultwarden-data:/data
+      # Chemin d'accès pour stocker le backup et la configuration rclone, voir https://github.com/ttionya/vaultwarden-backup
+      - /volume1/docker/vaultwarden/vaultwarden-backup_ttionya/config:/config
+      - /volume1/docker/vaultwarden/vaultwarden-backup_ttionya/rclone_backup:/rclone_backup
+
+    environment:
+      - DATA_DIR=/data                    # Dossier de données de Vaultwarden monté avec les volumes
+      - RCLONE_REMOTE_NAME=Backup_Syno    # Nom de la config rclone utilisée (voir note plus bas)
+      - RCLONE_REMOTE_DIR=/rclone_backup/ # Dossier qui doit monté avec les volumes
+      
+      # Utiliser soit SCHEDULE soit INTERVAL (ce dernier en sec)
+      # Pour SCHEDULE : https://crontab.guru/#0_22_*_*_*
+      # Dans la ligne suivante, on programme l'exécution tous les jours à 22h
+      - CRON=0 22 * * *
+      - ZIP_ENABLE=TRUE
+      - ZIP_PASSWORD=WHEREISMYPASSWORD?
+      - ZIP_TYPE=7z
+      #- BACKUP_FILE_DATE_SUFFIX=--%Hh%Mm%Ss
+      - BACKUP_FILE_DATE=%d-%m-%Y--%Hh%Mm%Ss
+      - BACKUP_KEEP_DAYS=7
+      # - MAIL_SMTP_ENABLE=FALSE
+      # - MAIL_SMTP_VARIABLES=''
+      # - MAIL_TO=''
+      # - MAIL_WHEN_SUCCESS='TRUE'
+      # - MAIL_WHEN_FAILURE='TRUE'
+      - TIMEZONE=Europe/Paris
+      
+      #############################################
+      # Note à propos de la configuration de rclone
+      #############################################
+      # Si vous voulez faire une sauvegarde locale, il faut juste placer le fichier rclone.conf dans le dossier ../config/rclone/
+      # Dans ce fichier vous trouverez ceci :
+      #          [Backup_Syno]
+      #          type = local
+      #
+      # Il faudra remplacer Backup_Syno par un autre nom au besoin.
+      # Ce fichier est donc prévu pour une sauvegarde locale.
+      # Pour configurer d'autres types de sauvegarde, il faut lancer la configuration de rclone avec cette commande :
+      # docker run --rm -it -v /volume1/docker/vaultwarden/vaultwarden-backup_ttionya/config:/config ttionya/vaultwarden-backup:latest rclone config
+
+
+networks:                                         # On indique ici de quel réseau on parlait précédemment
+  vaultwarden_network:
+    external:                                     # C'est un réseau créé en dehors du docker-compose.
+      name: vaultwarden_network                   # Je précise toujours un nom, car sinon ça va prendre un nom à rallonge avec
+                                                  # le nom du conteneur et du réseau voulu...

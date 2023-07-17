@@ -1,7 +1,8 @@
 ##==============================================================================================
 ##                                                                                            ##
 ##         Fichier docker-compose.yml pour Vaultwarden avec ttionya/vaultwarden-backup        ##
-##                                 Révision du fichier : v5.1                                 ##
+##                                 Révision du fichier : v6.0                                 ##
+##              Utilisable pour les versions de Vaultwarden postérieure à 1.29.0              ##
 ##                                                                                            ##
 ##==============================================================================================
 ##                                                                                            ##
@@ -27,30 +28,9 @@
 ##                                                                                            ##
 ##                              Ajout des Notifications Websocket                             ##
 ##                                                                                            ##
-## Pour qu'elles'fonctionnent, il faut configurer le reverse-proxy correctement.              ##
-## Pour celui de DSM, il n'est malheureusement pas possible de configurer les                 ##
-## redirections /notifications/hub vers le serveur WebSocket ni celles vers le port normal    ##
-## /notifications/hub/negotiate                                                               ##
-## Voir cet article pour tout ce qui n'est pas possible via l'interface de DSM :              ##
-## https://github.com/dani-garcia/vaultwarden/wiki/Enabling-WebSocket-notifications           ##
-##                                                                                            ##
-## Dès lors, il faut ruser et passer par l'exécution d'un petit script qui va créer un        ##
-## fchier ws.locations contenant les modifications précédentes, et qui va écrire une          ##
-## ligne dans le fichier /etc/nginx/app.d/server.ReverseProxy.conf pour inclure le            ##
-## fichier ws.locations au niveau de la section concernant le nom de domaine pour             ##
-## vaultwarden.                                                                               ##
-## Comme cela, il n'est pas nécessaire de passer par le changement de reverse-proxy, assez    ##
-## complexe à mettre en oeuvre...                                                             ##
-##                                                                                            ##
-## Le script est : vaultwarden__Enable_Websocket.sh                                           ##
-##                                                                                            ##
-## Il faudra la lancer régulièrement et à chaque redémarrage du NAS, via deux tâches          ##
-## plannifiées dédiées, en donnant 3 paramètres au fichier :                                  ##
-## - le nom de domaine de vaultwarden                                                         ##
-## - le port HTTP exposé (donc pas l'interne du conteneur) pour l'interface graphique         ##
-## - le port websocket exposé (donc pas l'interne du conteneur)                               ##
-## Voir les commentaires de ce fichier vaultwarden__Enable_Websocket.sh pour plus             ##
-## d'explications.                                                                            ##
+## Depuis la version 1.29.0, il n'est plus nécessaire de paramétrer le reverse-proxy          ##
+## pour la gestion des notifications websocket comme avant. Tout passera par le port          ##
+## web déclaré.                                                                               ##
 ##                                                                                            ##
 ##==============================================================================================
 #
@@ -116,8 +96,9 @@ services:
       
       - SIGNUPS_ALLOWED=false   # Fait en sorte que les inscriptions soient bloquées, seul l'admin pourra inviter
                                 # des utilisateurs avec un envoi d'email depuis la console d’administration
-
-      - WEBSOCKET_ENABLED=true  # Active les WebSocket notifications (Nécessite la configuration du reverse-proxy)
+      
+      ## ---- Non nécessaire depuis la version 1.29.0
+      # - WEBSOCKET_ENABLED=true  # Active les WebSocket notifications (Nécessite la configuration du reverse-proxy)
                                 # Durant le nombre importants d'essais, j'en suis venu à laisser le port par défaut
                                 # pour le WEBSOCKET_PORT. Il est possible que ça fonctionne avec un port différent.
                                 # Il faudra alors décommenter la ligne suivante, et changer le port exposé plus bas.
@@ -167,7 +148,7 @@ services:
     volumes:
       - "/volume1/docker/vaultwarden/vaultwarden-data/:/data/"
     ports:
-      - XXxxXX:3012   # Choisir un port libre pour le websocket
+      # - XXxxXX:3012   # Choisir un port libre pour le websocket ---- Non nécessaire depuis la version 1.29.0
       - XXxxXX:80     # Choisir un port libre pour l'interface WEB
     restart: unless-stopped
 
